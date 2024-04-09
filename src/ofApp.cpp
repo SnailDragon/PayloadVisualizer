@@ -4,10 +4,11 @@
 //--------------------------------------------------------------
 void ofApp::setup(){
 	ofSetLogLevel(OF_LOG_VERBOSE);
-	ofBackground(0);
+	ofBackground(50, 153, 204);
+	ofSetFrameRate(30);
 
 	// load model 
-	if (!model.load("PayloadMockUp.obj", ofxAssimpModelLoader::OPTIMIZE_DEFAULT)) {
+	if (!model.load("PayloadMockUpC.obj", ofxAssimpModelLoader::OPTIMIZE_DEFAULT)) {
 		ofLogFatalError() << " can't load model or model file cannot be found " << std::endl;
 		while (1);
 	}
@@ -20,20 +21,43 @@ void ofApp::setup(){
 
 	string line = "";
 	std::getline(file, line);
-	cout << line << endl;
+	//cout << line << endl;
 	std::stringstream ss(line);
 	string val = "";
-	ss.ignore(256, ' ');
+	if (ss.peek() == ' ') {
+		ss.ignore(256, ' ');
+	}
 	while (std::getline(ss, val, ',')) {
 		headers.push_back(val);
+		nextValues.push_back(0);
 		values.push_back(0);
 		ss.ignore(256, ' ');
 	}
 
-	for (auto& h : headers) {
-		cout << h << ", ";
+	// sync time	
+	// get set of data in newValues
+	line = "";
+	std::getline(file, line);
+	std::stringstream ssVal(line);
+	string valStr = "";
+	for (unsigned int i = 0; i < nextValues.size(); i++) {
+		std::getline(ssVal, valStr, ',');
+		try {
+			nextValues.at(i) = std::stod(valStr);
+		}
+		catch (std::exception& e) {
+			// keep old value
+		}
 	}
-	cout << endl;
+	values = nextValues; 
+	this->timeOfLastUpdate = std::chrono::steady_clock::now();
+	this->timeBetweenRows = nextValues[0] - values[0];
+
+	//cout << headers.at(0) << endl;
+	//for (auto& h : headers) {
+	//	cout << h << ", ";
+	//}
+	//cout << endl;
 
 	ofLogNotice() << " setup done " << std::endl;
 }
@@ -43,40 +67,63 @@ void ofApp::update(){
 
 	// update data used
 
-	string temp = "";
+	auto now = std::chrono::steady_clock::now();
+	double timeElapsed = std::chrono::duration_cast<chrono::milliseconds>(now - this->timeOfLastUpdate).count();
 
-	string line = "";
-	std::getline(file, line);
-	std::stringstream ss(line);
-	string valStr = "";
-	for (unsigned int i = 0; i < values.size(); i++) {
-		std::getline(ss, valStr, ',');
-		try {
-			values.at(i) = std::stof(valStr);
-		}
-		catch (std::exception& e) {
-			// keep old value
+	if (timeElapsed >= this->timeBetweenRows) {
+		double lastFrameTime = this->values[0];
+		while (((this->values[0] - lastFrameTime) / 1000) <= ofGetFrameRate()) {
+			cout << "next data" << this->values[0] - lastFrameTime << endl;
+			values = nextValues;
+			string line = "";
+			std::getline(file, line);
+			std::stringstream ss(line);
+			string valStr = "";
+			for (unsigned int i = 0; i < nextValues.size(); i++) {
+				std::getline(ss, valStr, ',');
+				try {
+					nextValues.at(i) = std::stod(valStr);
+				}
+				catch (std::exception& e) {
+					// keep old value
+				}
+			}
+
+			this->timeOfLastUpdate = now;
+			this->timeBetweenRows = nextValues[0] - values[0];
 		}
 	}
-
-	cout << endl;
-
-	for (auto& v : values) {
-		cout << v << ", ";
+	else {
+		cout << "maintain data" << endl;
 	}
-	cout << endl;
+
+	//for (auto& v : values) {
+	//	cout << v << ", ";
+	//}
+	//cout << endl;
 
 	float sceneHeight = fabs((model.getSceneMaxModelSpace() - model.getSceneMinModelSpace()).y);
 
 	model.setScale(0.5, 0.5, 0.5);
 	model.setRotation(0, 90, 1, 0, 0);
-	model.setRotation(1, 150, 0, 0, 1);
-	model.setPosition(ofGetWidth() / 2, ofGetHeight() / 2 + sceneHeight * 0.5, 0);
+	model.setRotation(1, 180, 0, 0, 1);
+
+
+	float magX = values[4];
+	float magY = values[5];
+	float magZ = values[6];
+	float zRot = std::atan2(magX, magY) * 180 / 3.141592;
+	float xRot = std::atan2(magZ, magY) * 180 / 3.141592;
+
+	model.setRotation(2, zRot, 0, 0, 1);
+	model.setRotation(3, xRot, 1, 0, 1);
+
+	model.setPosition(ofGetWidth() / 2, ofGetHeight() / 2, 0);
 
 	light.setPosition(model.getPosition() + glm::vec3(-300, -300, 1200));
 
 	model.update();
-
+	
 }
 
 //--------------------------------------------------------------
@@ -98,6 +145,20 @@ void ofApp::draw(){
 	light.disable();
 	ofDisableLighting();
 	ofDisableSeparateSpecularLight();
+
+	// draw current csv row at the bottom of the screen 
+	ofSetColor(255, 255, 255);
+	stringstream dataOverlay;
+	dataOverlay.precision(2);
+
+	for (int i = 0; i < this->headers.size(); i++) {
+		//cout << this->headers.at(i) << ": " << this->values.at(i) << endl;
+		dataOverlay << this->headers.at(i) << ":\t" << std::fixed << this->values.at(i) << "\n";
+	}
+
+	ofDrawBitmapString(dataOverlay.str(), 20, 20); //(ofGetHeight() - 40));
+
+	ofLogNotice() << " done draw at " << ofGetFrameRate() << endl;
 }
 
 //--------------------------------------------------------------

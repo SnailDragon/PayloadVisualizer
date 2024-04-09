@@ -4,6 +4,7 @@
 #include "ofxAssimpModelLoader.h"
 #include "ofVboMesh.h"
 #include <fstream>
+#include <chrono>
 
 class ofApp : public ofBaseApp{
 
@@ -32,5 +33,9 @@ class ofApp : public ofBaseApp{
 
 		ifstream file; 
 		vector<string> headers;
-		vector<float> values;
+		vector<double> values;
+		vector<double> nextValues;
+
+		std::chrono::steady_clock::time_point timeOfLastUpdate;
+		double timeBetweenRows;
 };
