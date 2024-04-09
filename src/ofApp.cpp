@@ -5,7 +5,7 @@
 void ofApp::setup(){
 	ofSetLogLevel(OF_LOG_VERBOSE);
 	ofBackground(50, 153, 204);
-	ofSetFrameRate(30);
+	ofSetFrameRate(60);
 
 	// load model 
 	if (!model.load("PayloadMockUpC.obj", ofxAssimpModelLoader::OPTIMIZE_DEFAULT)) {
@@ -69,11 +69,12 @@ void ofApp::update(){
 
 	auto now = std::chrono::steady_clock::now();
 	double timeElapsed = std::chrono::duration_cast<chrono::milliseconds>(now - this->timeOfLastUpdate).count();
-
+	double fps = ofGetFrameRate();
+	if(fps == 0) fps = 30;
 	if (timeElapsed >= this->timeBetweenRows) {
 		double lastFrameTime = this->values[0];
-		while (((this->values[0] - lastFrameTime) / 1000) <= ofGetFrameRate()) {
-			cout << "next data" << this->values[0] - lastFrameTime << endl;
+		while ((this->values[0] - lastFrameTime) <= (1.0 / fps)) {
+			cout << "skipping" << endl;
 			values = nextValues;
 			string line = "";
 			std::getline(file, line);
@@ -82,7 +83,7 @@ void ofApp::update(){
 			for (unsigned int i = 0; i < nextValues.size(); i++) {
 				std::getline(ss, valStr, ',');
 				try {
-					nextValues.at(i) = std::stod(valStr);
+					this->nextValues.at(i) = std::stod(valStr);
 				}
 				catch (std::exception& e) {
 					// keep old value
@@ -90,7 +91,7 @@ void ofApp::update(){
 			}
 
 			this->timeOfLastUpdate = now;
-			this->timeBetweenRows = nextValues[0] - values[0];
+			this->timeBetweenRows = this->nextValues[0] - this->values[0];
 		}
 	}
 	else {
@@ -107,7 +108,6 @@ void ofApp::update(){
 	model.setScale(0.5, 0.5, 0.5);
 	model.setRotation(0, 90, 1, 0, 0);
 	model.setRotation(1, 180, 0, 0, 1);
-
 
 	float magX = values[4];
 	float magY = values[5];
